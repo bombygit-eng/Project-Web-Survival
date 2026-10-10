@@ -1,0 +1,46 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Project: Web Survival</title>
+
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <main class="game-container">
+        <header class="game-header">
+            <div>
+                <h1>Project: Web Survival</h1>
+                <p class="subtitle">How long can you survive?</p>
+            </div>
+
+            <div class="game-stats">
+                <div class="stat">
+                    <span class="stat-label">HEALTH: </span>
+                    <span id="health">❤️ ❤️ ❤️</span>
+                </div>
+
+                <div class="stat">
+                    <span class="stat-label">SCORE: </span>
+                    <span id="score">0</span>
+                </div>
+            </div>
+        </header>
+
+        <section class="arena-container">
+            <canvas id="gameCanvas" width="900" height="600">
+                Your browser does not support HTML Canvas.
+            </canvas>
+        </section>
+
+        <footer class="game-footer">
+            <p>MOVE: WASD or ARROW KEYS, SHOOT: HOLD OR CLICK MOUSE1</p>
+            <p>OBJECTIVE: SURVIVE</p>
+        </footer>
+    </main>
+</body>
+</html>

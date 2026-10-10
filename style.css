@@ -1,0 +1,138 @@
+/* All elements */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Style for the body elements */
+body {
+    min-height: 100vh;
+    background: #101116;
+    color: #f1f1f1;
+    font-family: Arial, sans-serif;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    margin: 0;
+    padding: 16px;
+}
+
+/* Style for the game container (the main container) */
+.game-container {
+    width: 100%;
+    max-width: 900px;
+    min-width: 0;
+    margin: 0 auto;
+    overflow: hidden;
+    flex: 1 0 auto;
+}
+
+/* Style for the game header */
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+/* Style for header 1 */
+h1 {
+    font-size: clamp(24px, 4vw, 36px);
+    color: #f04f4f;
+    letter-spacing: 1px;
+}
+
+/* Style for the subtitle */
+.subtitle {
+    margin-top: 8px;
+    color: #999ba8;
+}
+
+/* Style for the game stats */
+.game-stats {
+    display: flex;
+    gap: 24px;
+}
+
+/* Style for specific stat */
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: right;
+}
+
+/* Style for the stat label  */
+.stat-label {
+    color: #999ba8;
+    font-size: 12px;
+    letter-spacing: 2px;
+}
+
+/* Style for health and score */
+#health,
+#score {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+/* Style for the arena (the play area) */
+.arena-container {
+    overflow: hidden;
+    border: 2px solid #343641;
+    border-radius: 10px;
+    background: #191d1b;
+    box-shadow: 0 0 35px #0008;
+}
+
+/* Style for the page */
+#gameCanvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 3 / 2;
+    background-color: #101419;
+}
+
+/* Style for the footer (bottom text) */
+.game-footer {
+    display: flex;
+    position: static;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+    color: #858794;
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+
+/* For images  */
+@media (max-width: 600px) {
+    body {
+        padding: 8px;
+        align-items: flex-start;
+    }
+
+    .game-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .game-stats {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .stat {
+        text-align: left;
+    }
+
+    .game-footer {
+        flex-direction: column;
+    }
+}
