@@ -14,6 +14,8 @@ const GAME_HEIGHT = canvas.height;
 
 const moveStick = createJoystick(document.getElementById("moveStick"));
 const aimStick = createJoystick(document.getElementById("aimStick"));
+const isTouchDevice = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+
 
 // Arena colors
 const ARENA_COLOR = "#5b6b63";
@@ -47,6 +49,10 @@ enemyImage.src = "assets/Enemies/Enemy1/fly01.png";
 playerImage.src = "assets/Player/slice01_.png";
 
 let spawnTimer = 0;
+
+// Audio
+let audioContext = null;
+let muted = false;
 
 // Game state
 const game = {
@@ -100,6 +106,44 @@ canvas.addEventListener("mousedown", (event) => {
 window.addEventListener("mouseup", (event) => {
     if (event.button === 0) mouse.down = false;
 });
+
+window.addEventListener("pointerdown", unlockAudio);
+window.addEventListener("pointerup", unlockAudio);   // some mobile browsers only count the release as a "gesture"
+window.addEventListener("keydown", unlockAudio);
+
+// Browsers block audio until the user interacts with the page,
+// so we create/resume the context on the first input.
+function unlockAudio() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === "suspended") {
+        audioContext.resume();
+    }
+}
+
+function drawAimArrow() {
+    if (!isTouchDevice) return;
+
+    const orbitDistance = 34;                    // distance from the player's center
+    const angle = Math.atan2(aim.y, aim.x);      // converts the aim direction into an angle
+
+    context.save();
+    context.translate(player.x, player.y);
+    context.rotate(angle);                      //turns the whole coordinate system by it
+
+    context.globalAlpha = aim.firing ? 1 : 0.5;  // brighter while shooting
+    context.fillStyle = "#ffd93b";
+
+    context.beginPath();
+    context.moveTo(orbitDistance + 10, 0);       // tip, pointing along the aim direction
+    context.lineTo(orbitDistance - 4, -7);
+    context.lineTo(orbitDistance - 4, 7);
+    context.closePath();
+    context.fill();
+
+    context.restore();                           // resets position, rotation and alpha
+}
 
 function createEnemy(x, y) {
     return {
@@ -189,6 +233,7 @@ function shoot() {
         vy: aim.y * BULLET_SPEED,
         radius: BULLET_RADIUS
     });
+    playShootSound();
 }
 
 function updateShooting(dt) {
@@ -230,6 +275,7 @@ function updateBullets(dt) {
                 enemies.splice(j, 1);
                 bullets.splice(i, 1);
                 addScore(Math.floor(Math.random() * 10) + 1);   // 1 to 10
+                playEnemyDeathSound();
                 break;   // this bullet is gone, stop checking it
             }
         }
@@ -276,6 +322,7 @@ function updateHealthDisplay() {
 function damagePlayer() {
     game.health -= 1;
     player.immunityTimer = PLAYER_IMMUNITY_TIME;
+    playHurtSound();
     updateHealthDisplay();
 }
 
@@ -497,6 +544,40 @@ function createJoystick(base) {
     return stick;
 }
 
+// Plays a tone that slides from one pitch to another while fading out
+function playTone({ type, from, to, duration, volume }) {
+    if (muted || !audioContext || audioContext.state !== "running") return;
+
+    const now = audioContext.currentTime;
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(from, now);
+    oscillator.frequency.exponentialRampToValueAtTime(to, now + duration);
+
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+
+    oscillator.start(now);
+    oscillator.stop(now + duration);
+}
+
+function playShootSound() {
+    playTone({ type: "square", from: 880, to: 220, duration: 0.08, volume: 0.04 });
+}
+
+function playEnemyDeathSound() {
+    playTone({ type: "sawtooth", from: 300, to: 60, duration: 0.18, volume: 0.08 });
+}
+
+function playHurtSound() {
+    playTone({ type: "triangle", from: 220, to: 70, duration: 0.25, volume: 0.15 });
+}
+
 function updateAim() {
     const stickTilted = aimStick.x !== 0 || aimStick.y !== 0;
 
@@ -533,8 +614,9 @@ function draw() {
     drawBackground();
     drawEnemies();
     drawPlayer();
+    drawAimArrow();
     drawBullets();
-
+    
 }
 
 let lastTime = performance.now();
