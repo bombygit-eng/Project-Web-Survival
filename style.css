@@ -153,6 +153,20 @@ h1 {
     background: #ffd93b99;
 }
 
+.controls-touch {
+    display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .controls-desktop {
+        display: none;
+    }
+
+    .controls-touch {
+        display: block;
+    }
+}
+
 /* For images  */
 @media (max-width: 600px) {
     body {
