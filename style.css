@@ -111,6 +111,48 @@ h1 {
     letter-spacing: 1px;
 }
 
+/* Hidden on desktop, shown on touch devices, for mobile functionality */
+.touch-controls {
+    display: none;
+    justify-content: space-between;
+    margin-top: 16px;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .touch-controls {
+        display: flex;
+    }
+}
+
+.joystick {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: #ffffff14;
+    border: 2px solid #343641;
+
+    touch-action: none;          /* stops the browser from scrolling/zooming on drag */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.joystick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #f04f4f99;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+#aimStick .joystick-knob {
+    background: #ffd93b99;
+}
+
 /* For images  */
 @media (max-width: 600px) {
     body {
@@ -136,3 +178,4 @@ h1 {
         flex-direction: column;
     }
 }
+

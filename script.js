@@ -12,6 +12,9 @@ const keys = {};
 const GAME_WIDTH = canvas.width;
 const GAME_HEIGHT = canvas.height;
 
+const moveStick = createJoystick(document.getElementById("moveStick"));
+const aimStick = createJoystick(document.getElementById("aimStick"));
+
 // Arena colors
 const ARENA_COLOR = "#5b6b63";
 const GRID_COLOR = "#6a7b72";
@@ -28,6 +31,7 @@ const backgroundContext = backgroundCanvas.getContext("2d");
 const playerImage = new Image();
 const enemyImage = new Image();
 const mouse = { x: GAME_WIDTH / 2, y: GAME_HEIGHT / 2, down: false };
+const aim = { x: 1, y: 0, firing: false };
 
 //Bullets
 const bullets = [];
@@ -83,6 +87,7 @@ window.addEventListener("blur", () => {
 });
 
 window.addEventListener("mousemove", (event) => {
+    mouse.seen = true;
     const rect = canvas.getBoundingClientRect();
     mouse.x = (event.clientX - rect.left) * (canvas.width / rect.width);
     mouse.y = (event.clientY - rect.top) * (canvas.height / rect.height);
@@ -177,18 +182,11 @@ function drawBullets() {
 }
 
 function shoot() {
-    const dx = mouse.x - player.x;
-    const dy = mouse.y - player.y;
-    const distance = Math.hypot(dx, dy);
-
-    if (distance === 0) return;   // mouse exactly on the player: no direction
-
-    // Normalized direction × speed
     bullets.push({
         x: player.x,
         y: player.y,
-        vx: (dx / distance) * BULLET_SPEED,
-        vy: (dy / distance) * BULLET_SPEED,
+        vx: aim.x * BULLET_SPEED,
+        vy: aim.y * BULLET_SPEED,
         radius: BULLET_RADIUS
     });
 }
@@ -196,7 +194,7 @@ function shoot() {
 function updateShooting(dt) {
     fireTimer = Math.max(0, fireTimer - dt);
 
-    if (mouse.down && fireTimer === 0) {
+    if (aim.firing && fireTimer === 0) {
         shoot();
         fireTimer = FIRE_COOLDOWN;
     }
@@ -283,6 +281,9 @@ function damagePlayer() {
 
 // Update game logic (dt = deltaTime)
 function update(dt) {
+
+    updateAim();
+
     // Player movement, enemies, and collisions
     // Player
     let distanceX = 0;
@@ -299,6 +300,13 @@ function update(dt) {
         distanceX /= length;
         distanceY /= length;
     }
+
+    // Left joystick overrides the keyboard and keeps its analog strength
+    if (moveStick.x !== 0 || moveStick.y !== 0) {
+        distanceX = moveStick.x;
+        distanceY = moveStick.y;
+    }
+
     if (distanceX !== 0 || distanceY !== 0) {
         player.animTime += dt;
     } else {
@@ -306,8 +314,8 @@ function update(dt) {
     }
 
     // Face the mouse, since you shoot where you aim
-    player.facing = mouse.x < player.x ? -1 : 1;
-
+    player.facing = aim.x < 0 ? -1 : 1; 
+    
     player.x += distanceX * player.speed * dt;
     player.y += distanceY * player.speed * dt;
 
@@ -424,6 +432,94 @@ const enemyFrames = loadFrames([
     "assets/Enemies/Enemy1/fly07.png"
 
 ]);
+
+function createJoystick(base) {
+    const knob = base.querySelector(".joystick-knob");
+    const stick = { x: 0, y: 0, active: false };
+    let activePointer = null;   // which finger owns this stick
+
+    function updateFromPointer(event) {
+        const rect = base.getBoundingClientRect(); 
+        const radius = rect.width / 2;
+        const maxDistance = radius - knob.offsetWidth / 2;   // how far the knob can travel
+
+        let dx = event.clientX - (rect.left + radius);
+        let dy = event.clientY - (rect.top + radius);
+
+        // Clamp the knob to the edge of the base
+        const distance = Math.hypot(dx, dy);
+        if (distance > maxDistance) {
+            dx = (dx / distance) * maxDistance;
+            dy = (dy / distance) * maxDistance;
+        }
+
+        knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+        // Small dead zone so a resting thumb doesn't count as input
+        if (Math.hypot(dx, dy) < maxDistance * 0.15) {
+            stick.x = 0;
+            stick.y = 0;
+        } else {
+            stick.x = dx / maxDistance;
+            stick.y = dy / maxDistance;
+        }
+    }
+
+    function release() {
+        activePointer = null;
+        stick.active = false;
+        stick.x = 0;
+        stick.y = 0;
+        knob.style.transform = "translate(-50%, -50%)";
+    }
+
+    base.addEventListener("pointerdown", (event) => {
+        if (activePointer !== null) return;   // already held by another finger
+        event.preventDefault();
+        activePointer = event.pointerId;
+        base.setPointerCapture(event.pointerId);   // keep getting events even if the finger leaves the circle
+        stick.active = true;
+        updateFromPointer(event);
+    });
+
+    base.addEventListener("pointermove", (event) => {
+        if (event.pointerId === activePointer) updateFromPointer(event);
+    });
+
+    base.addEventListener("pointerup", (event) => {
+        if (event.pointerId === activePointer) release();
+    });
+
+    base.addEventListener("pointercancel", (event) => {
+        if (event.pointerId === activePointer) release();
+    });
+
+    return stick;
+}
+
+function updateAim() {
+    const stickTilted = aimStick.x !== 0 || aimStick.y !== 0;
+
+    if (stickTilted) {
+        // Right joystick: aim where it points, and fire automatically
+        const length = Math.hypot(aimStick.x, aimStick.y);
+        aim.x = aimStick.x / length;
+        aim.y = aimStick.y / length;
+        aim.firing = true;
+    } else if (mouse.seen) {
+        // Mouse: aim at the cursor, fire while the button is held
+        const dx = mouse.x - player.x;
+        const dy = mouse.y - player.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance > 0) {
+            aim.x = dx / distance;
+            aim.y = dy / distance;
+        }
+        aim.firing = mouse.down;
+    } else {
+        aim.firing = false;
+    }
+}
 
 const ANIMATION_FPS = 8;   // frames per second of the animation
 
