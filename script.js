@@ -4,6 +4,9 @@ const context = canvas.getContext("2d");
 const healthDisplay = document.getElementById("health");
 const scoreDisplay = document.getElementById("score");
 context.imageSmoothingEnabled = false;
+const menuOverlay = document.getElementById("menuOverlay");
+const gameOverOverlay = document.getElementById("gameOverOverlay");
+const finalScoreDisplay = document.getElementById("finalScore");
 
 
 // ===== CONSTANTS =====
@@ -20,22 +23,60 @@ const SPAWN_MARGIN = 20;
 const SPAWN_INTERVAL = 1.5;
 const PLAYER_IMMUNITY_TIME = 0.5;
 
-// Bullet settings
-const BULLET_SPEED = 500;      // px per second
-const BULLET_RADIUS = 5;
-const FIRE_COOLDOWN = 2;    // seconds between shots while holding
-
 // Animation settings
 const ANIMATION_FPS = 8;   // frames per second of the animation
+
+// Player settings
+const PLAYER_START_HEALTH = 3;
 
 
 // ===== GAME STATE =====
 // Game state
 const game = {
-    running: true,
+    state: "menu",   // "menu" | "playing" | "gameover"
     score: 0,
-    health: 3
+    health: PLAYER_START_HEALTH
 };
+
+// ===== GAME STATES & MENUS =====
+function resetGame() {
+    // Stats and HUD
+    game.score = 0;
+    game.health = PLAYER_START_HEALTH;
+    scoreDisplay.textContent = game.score;
+    updateHealthDisplay();
+
+    // Player
+    player.x = GAME_WIDTH / 2;
+    player.y = GAME_HEIGHT / 2;
+    player.immunityTimer = 0;
+    player.animTime = 0;
+    player.facing = 1;
+
+    // World (arrays are const, so empty them in place)
+    enemies.length = 0;
+    bullets.length = 0;
+    spawnTimer = 0;
+    fireTimer = 0;
+}
+
+// Every state change goes through here, so the side effects live in one place
+function setState(newState) {
+    game.state = newState;
+
+    menuOverlay.hidden = newState !== "menu";
+    gameOverOverlay.hidden = newState !== "gameover";
+
+    if (newState === "playing") {
+        resetGame();
+    } else if (newState === "gameover") {
+        finalScoreDisplay.textContent = game.score;
+    }
+}
+
+document.getElementById("startButton").addEventListener("click", () => setState("playing"));
+document.getElementById("restartButton").addEventListener("click", () => setState("playing"));
+document.getElementById("menuButton").addEventListener("click", () => setState("menu"));
 
 //Player appearence
 const player = {
@@ -44,6 +85,7 @@ const player = {
     width: 32,
     height: 32,
     speed: 220,   // pixels per second
+    weapon: null,
     immunityTimer: 0,    // counts down to 0; the player can't be hurt while > 0
     animTime: 0,
     facing: 1        // 1 = facing right, -1 = facing left
@@ -101,6 +143,67 @@ function getFrame(frames, time) {
     return frames[Math.floor(time * ANIMATION_FPS) % frames.length];
 }
 
+// ===== DATA TABLES =====
+const WEAPONS = {
+    pistol: {
+        name: "Pistol",
+        cooldown: 1,       // seconds between shots
+        damage: 2,           // health removed from an enemy per bullet
+        bulletSpeed: 500,    // px per second
+        bulletRadius: 6,
+        pellets: 1,          // bullets fired per shot
+        spread: 0            // cone width in radians (0 = perfectly accurate)
+    },
+    shotgun: {
+        name: "Shotgun",
+        cooldown: 2,       // seconds between shots
+        damage: 1,           // health removed from an enemy per bullet
+        bulletSpeed: 500,    // px per second
+        bulletRadius: 2,
+        pellets: 5,          // bullets fired per shot
+        spread: 50 * Math.PI / 180
+    },
+    smg: {
+        name: "SMG",
+        cooldown: 0.4,       // seconds between shots
+        damage: 1,           // health removed from an enemy per bullet
+        bulletSpeed: 500,    // px per second
+        bulletRadius: 4,
+        pellets: 1,          // bullets fired per shot
+        spread: 8 * Math.PI / 180
+              
+    },
+};
+
+const ENEMY_TYPES = {
+    fly: {
+        speed: 90,           // slower than the player (220) so you can escape
+        hp: 2,
+        size: 28,
+        color: "#f04f4f",    // fallback square while images load
+        scoreMin: 1,
+        scoreMax: 10,
+        frames: enemyFrames
+    },
+    tank: {
+        speed: 45,           // slower than the player (220) so you can escape
+        hp: 5,
+        size: 56,
+        color: "#f04f4f",    // fallback square while images load
+        scoreMin: 5,
+        scoreMax: 25,
+        frames: enemyFrames
+    },
+    speedy: {
+        speed: 200,             // slower than the player (220) so you can escape
+        hp: 1,
+        size: 14,
+        color: "#f04f4f",    // fallback square while images load
+        scoreMin: 1,
+        scoreMax: 15,
+        frames: enemyFrames
+    }
+};
 
 // ===== AUDIO =====
 let audioContext = null;
@@ -153,6 +256,10 @@ function playEnemyDeathSound() {
 
 function playHurtSound() {
     playTone({ type: "triangle", from: 220, to: 70, duration: 0.25, volume: 0.15 });
+}
+
+function playHitSound() {
+    playTone({ type: "square", from: 500, to: 300, duration: 0.05, volume: 0.05 });
 }
 
 
@@ -290,14 +397,19 @@ function updateAim() {
 
 
 // ===== ENEMIES =====
-function createEnemy(x, y) {
+function createEnemy(typeId, x, y) {
+    const type = ENEMY_TYPES[typeId];
+
     return {
+        type: type,
         x: x,
         y: y,
-        width: 28,
-        height: 28,
-        speed: 90,        // slower than the player (220) so you can escape
-        color: "#f04f4f",
+        width: type.size,
+        height: type.size,
+        speed: type.speed,
+        hp: type.hp,
+        color: type.color,
+        hitTimer: 0,                    // > 0 briefly after being hit (for the flash)
         animTime: Math.random() * 10,   // random start so enemies don't flap in sync
         facing: 1
     };
@@ -308,6 +420,9 @@ function spawnEnemy() {
     const side = Math.floor(Math.random() * 4);   // 0=top, 1=right, 2=bottom, 3=left
     // Random offset from -MARGIN (inside) to +MARGIN (outside)
     const offset = (Math.random() * 2 - 1) * SPAWN_MARGIN;
+    const enemyTypes = Object.keys(ENEMY_TYPES);
+    const randomIndex = Math.floor(Math.random() * enemyTypes.length);
+    const randomType = enemyTypes[randomIndex];
 
     let x, y;
 
@@ -325,7 +440,7 @@ function spawnEnemy() {
         y = Math.random() * GAME_HEIGHT;
     }
 
-    enemies.push(createEnemy(x, y));
+    enemies.push(createEnemy(randomType, x, y));
 }
 
 function updateSpawning(dt) {
@@ -343,6 +458,7 @@ function updateEnemies(dt) {
         const distanceY = player.y - enemy.y;
         const distance = Math.hypot(distanceX, distanceY);
         enemy.animTime += dt;
+        enemy.hitTimer = Math.max(0, enemy.hitTimer - dt);
         enemy.facing = player.x < enemy.x ? -1 : 1;
 
         // Avoid dividing by zero if the enemy is exactly on the player
@@ -392,22 +508,33 @@ function updateHealthDisplay() {
 
 // ===== SHOOTING & SCORE =====
 function shoot() {
-    bullets.push({
-        x: player.x,
-        y: player.y,
-        vx: aim.x * BULLET_SPEED,
-        vy: aim.y * BULLET_SPEED,
-        radius: BULLET_RADIUS
-    });
+    const weapon = player.weapon;
+    const baseAngle = Math.atan2(aim.y, aim.x);
+
+    for (let i = 0; i < weapon.pellets; i++) {
+        // Random angle inside the weapon's spread cone (± half the spread)
+        const angle = baseAngle + (Math.random() - 0.5) * weapon.spread;
+
+        bullets.push({
+            x: player.x,
+            y: player.y,
+            vx: Math.cos(angle) * weapon.bulletSpeed,
+            vy: Math.sin(angle) * weapon.bulletSpeed,
+            radius: weapon.bulletRadius,
+            damage: weapon.damage
+        });
+    }
     playShootSound();
 }
 
 function updateShooting(dt) {
+    if (!player.weapon) return;
+
     fireTimer = Math.max(0, fireTimer - dt);
 
-    if (aim.firing && fireTimer === 0) {
+    if (aim.firing && fireTimer <= 0) {
         shoot();
-        fireTimer = FIRE_COOLDOWN;
+        fireTimer = player.weapon.cooldown;
     }
 }
 
@@ -433,10 +560,17 @@ function updateBullets(dt) {
             if (Math.abs(bullet.x - enemy.x) < enemy.width / 2 + bullet.radius &&
                 Math.abs(bullet.y - enemy.y) < enemy.height / 2 + bullet.radius) {
 
-                enemies.splice(j, 1);
-                bullets.splice(i, 1);
-                addScore(Math.floor(Math.random() * 10) + 1);   // 1 to 10
-                playEnemyDeathSound();
+                bullets.splice(i, 1);          // the bullet is used up either way
+                enemy.hp -= bullet.damage;
+
+                if (enemy.hp <= 0) {
+                    enemies.splice(j, 1);
+                    addScore(randomInt(enemy.type.scoreMin, enemy.type.scoreMax));
+                    playEnemyDeathSound();
+                } else {
+                    enemy.hitTimer = 0.08;     // brief flash
+                    playHitSound();
+                }
                 break;   // this bullet is gone, stop checking it
             }
         }
@@ -448,10 +582,56 @@ function addScore(points) {
     scoreDisplay.textContent = game.score;
 }
 
+function randomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// ===== GAME STATES & MENUS =====
+function resetGame() {
+    // Stats and HUD
+    game.score = 0;
+    game.health = PLAYER_START_HEALTH;
+    scoreDisplay.textContent = game.score;
+    updateHealthDisplay();
+
+    // Player
+    player.x = GAME_WIDTH / 2;
+    player.y = GAME_HEIGHT / 2;
+    player.immunityTimer = 0;
+    player.weapon = { ...WEAPONS.pistol }; // Makes a copy, for upgrade purposes
+    player.animTime = 0;
+    player.facing = 1;
+
+    // World (arrays are const, so empty them in place)
+    enemies.length = 0;
+    bullets.length = 0;
+    spawnTimer = 0;
+    fireTimer = 0;
+}
+
+// Every state change goes through here, so the side effects live in one place
+function setState(newState) {
+    game.state = newState;
+
+    menuOverlay.hidden = newState !== "menu";
+    gameOverOverlay.hidden = newState !== "gameover";
+
+    if (newState === "playing") {
+        resetGame();
+    } else if (newState === "gameover") {
+        finalScoreDisplay.textContent = game.score;
+    }
+}
+
+document.getElementById("startButton").addEventListener("click", () => setState("playing"));
+document.getElementById("restartButton").addEventListener("click", () => setState("playing"));
+document.getElementById("menuButton").addEventListener("click", () => setState("menu"));
 
 // ===== MAIN UPDATE =====
 // Update game logic (dt = deltaTime)
 function update(dt) {
+
+    if (game.state !== "playing") return;
 
     updateAim();
 
@@ -505,6 +685,7 @@ function update(dt) {
     updateShooting(dt);
     updateBullets(dt);
 
+    if (game.health <= 0) setState("gameover");
 }
 
 
@@ -558,7 +739,11 @@ function drawSprite(image, x, y, width, height, facing) {
 
 function drawEnemies() {
     for (const enemy of enemies) {
-        const frame = getFrame(enemyFrames, enemy.animTime);
+        const frame = getFrame(enemy.type.frames, enemy.animTime);
+
+        // Semi-transparent for a moment after being hit
+        context.globalAlpha = enemy.hitTimer > 0 ? 0.5 : 1;
+
         const drawn = drawSprite(frame, enemy.x, enemy.y, enemy.width, enemy.height, enemy.facing);
 
         if (!drawn) {
@@ -571,6 +756,8 @@ function drawEnemies() {
                 enemy.height
             );
         }
+
+        context.globalAlpha = 1;
     }
 }
 
@@ -647,22 +834,14 @@ let lastTime = performance.now();
 
 // Main game loop
 function gameLoop(currentTime) {
-    if (!game.running) return;
-
     // Seconds since last frame, capped so a tab switch doesn't cause a huge jump
-    const dt = Math.min((currentTime - lastTime) / 1000, 0.05); //dt = deltaTime (time before each game frame)
+    const dt = Math.min((currentTime - lastTime) / 1000, 0.05);
     lastTime = currentTime;
 
     update(dt);
     draw();
 
-    if (game.health <= 0) {
-        game.running = false;
-        drawGameOver();
-        return;
-    }
-
-    requestAnimationFrame(gameLoop); // Start the loop
+    requestAnimationFrame(gameLoop);
 }
 
 // Start the game

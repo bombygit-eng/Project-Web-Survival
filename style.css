@@ -88,6 +88,7 @@ h1 {
     border-radius: 10px;
     background: #191d1b;
     box-shadow: 0 0 35px #0008;
+    position: relative;
 }
 
 /* Style for the page */
@@ -118,10 +119,56 @@ h1 {
     margin-top: 16px;
 }
 
-@media (hover: none) and (pointer: coarse) {
-    .touch-controls {
-        display: flex;
-    }
+/* For overlays */
+.overlay {
+    position: absolute;
+    inset: 0;                       /* stretch to cover the whole arena */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    background: rgba(16, 17, 22, 0.78);
+    text-align: center;
+}
+
+/* Needed: our display: flex above would otherwise override the hidden attribute */
+.overlay[hidden] {
+    display: none;
+}
+
+.overlay h2 {
+    font-size: clamp(24px, 5vw, 44px);
+    color: #f04f4f;
+    letter-spacing: 2px;
+}
+
+.overlay p {
+    color: #999ba8;
+}
+
+.menu-button {
+    padding: 12px 32px;
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #f1f1f1;
+    background: #f04f4f;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.menu-button:hover {
+    background: #ff6666;
+}
+
+.menu-button.secondary {
+    background: #343641;
+}
+
+.menu-button.secondary:hover {
+    background: #454856;
 }
 
 .joystick {
@@ -158,12 +205,30 @@ h1 {
 }
 
 @media (hover: none) and (pointer: coarse) {
+    .touch-controls {
+        display: flex;
+    }
+}
+
+@media (hover: none) and (pointer: coarse) {
     .controls-desktop {
         display: none;
     }
 
     .controls-touch {
         display: block;
+    }
+}
+
+/* For Overlay */
+@media (max-width: 600px) {
+    .overlay {
+        gap: 8px;
+    }
+
+    .menu-button {
+        padding: 8px 20px;
+        font-size: 14px;
     }
 }
 

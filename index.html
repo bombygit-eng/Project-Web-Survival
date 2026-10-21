@@ -35,6 +35,19 @@
             <canvas id="gameCanvas" width="900" height="600">
                 Your browser does not support HTML Canvas.
             </canvas>
+
+            <div class="overlay" id="menuOverlay">
+                <h2>Project: Web Survival</h2>
+                <p>How long can you survive?</p>
+                <button class="menu-button" id="startButton">START</button>
+            </div>
+
+            <div class="overlay" id="gameOverOverlay" hidden>
+                <h2>GAME OVER</h2>
+                <p>Score: <span id="finalScore">0</span></p>
+                <button class="menu-button" id="restartButton">PLAY AGAIN</button>
+                <button class="menu-button secondary" id="menuButton">MAIN MENU</button>
+            </div>
         </section>
 
         <section class="touch-controls">
