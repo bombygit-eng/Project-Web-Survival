@@ -7,6 +7,9 @@ context.imageSmoothingEnabled = false;
 const menuOverlay = document.getElementById("menuOverlay");
 const gameOverOverlay = document.getElementById("gameOverOverlay");
 const finalScoreDisplay = document.getElementById("finalScore");
+const weaponOverlay = document.getElementById("weaponOverlay");
+const weaponList = document.getElementById("weaponList");
+const weaponButton = document.getElementById("weaponButton");
 
 
 // ===== CONSTANTS =====
@@ -21,7 +24,7 @@ const GRID_COLOR = "#6a7b72";
 // Gameplay settings
 const SPAWN_MARGIN = 20;
 const SPAWN_INTERVAL = 1.5;
-const PLAYER_IMMUNITY_TIME = 0.5;
+const PLAYER_IMMUNITY_TIME = 1.5;
 
 // Animation settings
 const ANIMATION_FPS = 8;   // frames per second of the animation
@@ -33,50 +36,11 @@ const PLAYER_START_HEALTH = 3;
 // ===== GAME STATE =====
 // Game state
 const game = {
-    state: "menu",   // "menu" | "playing" | "gameover"
+    state: "menu",   // "menu" | "weaponSelect" | "playing" | "gameover"
+    selectedWeapon: "pistol",
     score: 0,
     health: PLAYER_START_HEALTH
 };
-
-// ===== GAME STATES & MENUS =====
-function resetGame() {
-    // Stats and HUD
-    game.score = 0;
-    game.health = PLAYER_START_HEALTH;
-    scoreDisplay.textContent = game.score;
-    updateHealthDisplay();
-
-    // Player
-    player.x = GAME_WIDTH / 2;
-    player.y = GAME_HEIGHT / 2;
-    player.immunityTimer = 0;
-    player.animTime = 0;
-    player.facing = 1;
-
-    // World (arrays are const, so empty them in place)
-    enemies.length = 0;
-    bullets.length = 0;
-    spawnTimer = 0;
-    fireTimer = 0;
-}
-
-// Every state change goes through here, so the side effects live in one place
-function setState(newState) {
-    game.state = newState;
-
-    menuOverlay.hidden = newState !== "menu";
-    gameOverOverlay.hidden = newState !== "gameover";
-
-    if (newState === "playing") {
-        resetGame();
-    } else if (newState === "gameover") {
-        finalScoreDisplay.textContent = game.score;
-    }
-}
-
-document.getElementById("startButton").addEventListener("click", () => setState("playing"));
-document.getElementById("restartButton").addEventListener("click", () => setState("playing"));
-document.getElementById("menuButton").addEventListener("click", () => setState("menu"));
 
 //Player appearence
 const player = {
@@ -127,7 +91,7 @@ const playerFrames = loadFrames([
     "assets/Player/slice08_.png"
 ]);
 
-const enemyFrames = loadFrames([
+const flyFrames = loadFrames([
     "assets/Enemies/Enemy1/fly01.png",
     "assets/Enemies/Enemy1/fly02.png",   
     "assets/Enemies/Enemy1/fly03.png",
@@ -138,6 +102,26 @@ const enemyFrames = loadFrames([
 
 ]);
 
+const speedyFrames = loadFrames([
+    "assets/Enemies/Enemy2/rat_1.png",
+    "assets/Enemies/Enemy2/rat_2.png",
+    "assets/Enemies/Enemy2/rat_3.png",
+    "assets/Enemies/Enemy2/rat_4.png",
+    "assets/Enemies/Enemy2/rat_5.png",
+    "assets/Enemies/Enemy2/rat_6.png",
+    "assets/Enemies/Enemy2/rat_7.png",
+    "assets/Enemies/Enemy2/rat_8.png"
+])
+
+const tankFrames = loadFrames([
+    "assets/Enemies/Enemy3/slime_1.png",
+    "assets/Enemies/Enemy3/slime_2.png",
+    "assets/Enemies/Enemy3/slime_3.png",
+    "assets/Enemies/Enemy3/slime_4.png",
+    "assets/Enemies/Enemy3/slime_5.png",
+    "assets/Enemies/Enemy3/slime_6.png"
+])
+
 // Pick the frame for a given animation time (in seconds)
 function getFrame(frames, time) {
     return frames[Math.floor(time * ANIMATION_FPS) % frames.length];
@@ -147,6 +131,7 @@ function getFrame(frames, time) {
 const WEAPONS = {
     pistol: {
         name: "Pistol",
+        description: "Slow but accurate. Every bullet hits hard, so good aim pays off.",    
         cooldown: 1,       // seconds between shots
         damage: 2,           // health removed from an enemy per bullet
         bulletSpeed: 500,    // px per second
@@ -156,6 +141,7 @@ const WEAPONS = {
     },
     shotgun: {
         name: "Shotgun",
+        description: "A wide burst of 5 pellets. Best up close, where most of them land.",    
         cooldown: 2,       // seconds between shots
         damage: 1,           // health removed from an enemy per bullet
         bulletSpeed: 500,    // px per second
@@ -165,6 +151,7 @@ const WEAPONS = {
     },
     smg: {
         name: "SMG",
+        description: "A fast, spraying stream. Low damage per bullet, but it never stops.",    
         cooldown: 0.4,       // seconds between shots
         damage: 1,           // health removed from an enemy per bullet
         bulletSpeed: 500,    // px per second
@@ -178,30 +165,30 @@ const WEAPONS = {
 const ENEMY_TYPES = {
     fly: {
         speed: 90,           // slower than the player (220) so you can escape
-        hp: 2,
+        hp: 4,
         size: 28,
         color: "#f04f4f",    // fallback square while images load
         scoreMin: 1,
         scoreMax: 10,
-        frames: enemyFrames
+        frames: flyFrames
     },
     tank: {
         speed: 45,           // slower than the player (220) so you can escape
-        hp: 5,
+        hp: 10,
         size: 56,
         color: "#f04f4f",    // fallback square while images load
         scoreMin: 5,
         scoreMax: 25,
-        frames: enemyFrames
+        frames: tankFrames
     },
     speedy: {
         speed: 200,             // slower than the player (220) so you can escape
-        hp: 1,
+        hp: 2,
         size: 14,
         color: "#f04f4f",    // fallback square while images load
         scoreMin: 1,
         scoreMax: 15,
-        frames: enemyFrames
+        frames: speedyFrames
     }
 };
 
@@ -598,7 +585,7 @@ function resetGame() {
     player.x = GAME_WIDTH / 2;
     player.y = GAME_HEIGHT / 2;
     player.immunityTimer = 0;
-    player.weapon = { ...WEAPONS.pistol }; // Makes a copy, for upgrade purposes
+    player.weapon = { ...WEAPONS[game.selectedWeapon] }; // Makes a copy, for upgrade purposes
     player.animTime = 0;
     player.facing = 1;
 
@@ -609,14 +596,62 @@ function resetGame() {
     fireTimer = 0;
 }
 
+// Shows the chosen weapon on the main menu button
+function updateWeaponButton() {
+    weaponButton.textContent = "WEAPON: " + WEAPONS[game.selectedWeapon].name.toUpperCase();
+}
+
+function selectWeapon(id) {
+    game.selectedWeapon = id;
+    setState("menu");   // closes the window and refreshes the menu button
+}
+
+// Builds one card per entry in WEAPONS, so new weapons appear automatically
+function buildWeaponCards() {
+    weaponList.replaceChildren();
+
+    for (const [id, weapon] of Object.entries(WEAPONS)) {
+        const isSelected = id === game.selectedWeapon;
+
+        const card = document.createElement("div");
+        card.className = "weapon-card" + (isSelected ? " selected" : "");
+
+        const title = document.createElement("h3");
+        title.textContent = weapon.name;
+
+        const description = document.createElement("p");
+        description.textContent = weapon.description;
+
+        // Stats come from the table, so they always match the real values
+        const stats = document.createElement("div");
+        stats.className = "weapon-stats";
+        const pelletText = weapon.pellets > 1 ? " × " + weapon.pellets : "";
+        stats.textContent = weapon.damage + " dmg" + pelletText +
+                            " · " + (1 / weapon.cooldown).toFixed(1) + " shots/second";
+
+        const button = document.createElement("button");
+        button.className = "menu-button";
+        button.textContent = isSelected ? "SELECTED" : "SELECT";
+        button.addEventListener("click", () => selectWeapon(id));
+
+        card.append(title, description, stats, button);
+        weaponList.append(card);
+    }
+}
+
 // Every state change goes through here, so the side effects live in one place
 function setState(newState) {
     game.state = newState;
 
     menuOverlay.hidden = newState !== "menu";
+    weaponOverlay.hidden = newState !== "weaponSelect";
     gameOverOverlay.hidden = newState !== "gameover";
 
-    if (newState === "playing") {
+    if (newState === "menu") {
+        updateWeaponButton();
+    } else if (newState === "weaponSelect") {
+        buildWeaponCards();
+    } else if (newState === "playing") {
         resetGame();
     } else if (newState === "gameover") {
         finalScoreDisplay.textContent = game.score;
@@ -626,6 +661,8 @@ function setState(newState) {
 document.getElementById("startButton").addEventListener("click", () => setState("playing"));
 document.getElementById("restartButton").addEventListener("click", () => setState("playing"));
 document.getElementById("menuButton").addEventListener("click", () => setState("menu"));
+document.getElementById("weaponButton").addEventListener("click", () => setState("weaponSelect"));
+document.getElementById("weaponBackButton").addEventListener("click", () => setState("menu"));
 
 // ===== MAIN UPDATE =====
 // Update game logic (dt = deltaTime)
@@ -845,4 +882,5 @@ function gameLoop(currentTime) {
 }
 
 // Start the game
+setState("menu");
 requestAnimationFrame(gameLoop);

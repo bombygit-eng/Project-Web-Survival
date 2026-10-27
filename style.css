@@ -1,3 +1,5 @@
+/* ===== BASE ===== */
+
 /* All elements */
 * {
     margin: 0;
@@ -5,7 +7,7 @@
     box-sizing: border-box;
 }
 
-/* Style for the body elements */
+/* Page body: centers the game on the screen */
 body {
     min-height: 100vh;
     background: #101116;
@@ -17,11 +19,13 @@ body {
     justify-content: center;
     align-items: center;
 
-    margin: 0;
     padding: 16px;
 }
 
-/* Style for the game container (the main container) */
+
+/* ===== LAYOUT ===== */
+
+/* Main container that holds the whole game */
 .game-container {
     width: 100%;
     max-width: 900px;
@@ -31,7 +35,9 @@ body {
     flex: 1 0 auto;
 }
 
-/* Style for the game header */
+
+/* ===== HEADER ===== */
+
 .game-header {
     display: flex;
     justify-content: space-between;
@@ -40,26 +46,23 @@ body {
     margin-bottom: 20px;
 }
 
-/* Style for header 1 */
 h1 {
     font-size: clamp(24px, 4vw, 36px);
     color: #f04f4f;
     letter-spacing: 1px;
 }
 
-/* Style for the subtitle */
 .subtitle {
     margin-top: 8px;
     color: #999ba8;
 }
 
-/* Style for the game stats */
+/* Health and score */
 .game-stats {
     display: flex;
     gap: 24px;
 }
 
-/* Style for specific stat */
 .stat {
     display: flex;
     flex-direction: column;
@@ -67,31 +70,31 @@ h1 {
     text-align: right;
 }
 
-/* Style for the stat label  */
 .stat-label {
     color: #999ba8;
     font-size: 12px;
     letter-spacing: 2px;
 }
 
-/* Style for health and score */
 #health,
 #score {
     font-size: 20px;
     font-weight: bold;
 }
 
-/* Style for the arena (the play area) */
+
+/* ===== ARENA ===== */
+
+/* The play area frame (also the anchor for the menu overlays) */
 .arena-container {
+    position: relative;
     overflow: hidden;
     border: 2px solid #343641;
     border-radius: 10px;
     background: #191d1b;
     box-shadow: 0 0 35px #0008;
-    position: relative;
 }
 
-/* Style for the page */
 #gameCanvas {
     display: block;
     width: 100%;
@@ -100,10 +103,11 @@ h1 {
     background-color: #101419;
 }
 
-/* Style for the footer (bottom text) */
+
+/* ===== FOOTER ===== */
+
 .game-footer {
     display: flex;
-    position: static;
     justify-content: space-between;
     gap: 12px;
     margin-top: 16px;
@@ -112,63 +116,19 @@ h1 {
     letter-spacing: 1px;
 }
 
+/* Touch-only controls text (swapped in by the touch-device media query below) */
+.controls-touch {
+    display: none;
+}
+
+
+/* ===== TOUCH CONTROLS ===== */
+
 /* Hidden on desktop, shown on touch devices, for mobile functionality */
 .touch-controls {
     display: none;
     justify-content: space-between;
     margin-top: 16px;
-}
-
-/* For overlays */
-.overlay {
-    position: absolute;
-    inset: 0;                       /* stretch to cover the whole arena */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 14px;
-    background: rgba(16, 17, 22, 0.78);
-    text-align: center;
-}
-
-/* Needed: our display: flex above would otherwise override the hidden attribute */
-.overlay[hidden] {
-    display: none;
-}
-
-.overlay h2 {
-    font-size: clamp(24px, 5vw, 44px);
-    color: #f04f4f;
-    letter-spacing: 2px;
-}
-
-.overlay p {
-    color: #999ba8;
-}
-
-.menu-button {
-    padding: 12px 32px;
-    font-size: 18px;
-    font-weight: bold;
-    letter-spacing: 2px;
-    color: #f1f1f1;
-    background: #f04f4f;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-}
-
-.menu-button:hover {
-    background: #ff6666;
-}
-
-.menu-button.secondary {
-    background: #343641;
-}
-
-.menu-button.secondary:hover {
-    background: #454856;
 }
 
 .joystick {
@@ -200,17 +160,153 @@ h1 {
     background: #ffd93b99;
 }
 
-.controls-touch {
+
+/* ===== BUTTONS ===== */
+
+.menu-button {
+    padding: 12px 32px;
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #f1f1f1;
+    background: #f04f4f;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.menu-button:hover {
+    background: #ff6666;
+}
+
+.menu-button.secondary {
+    background: #343641;
+}
+
+.menu-button.secondary:hover {
+    background: #454856;
+}
+
+
+/* ===== OVERLAYS (main menu & game over) ===== */
+
+/* A layer covering the whole arena */
+.overlay {
+    position: absolute;
+    inset: 0;                       /* stretch to cover the whole arena */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    background: rgba(16, 17, 22, 0.78);
+    text-align: center;
+}
+
+/* Needed: our display: flex above would otherwise override the hidden attribute */
+.overlay[hidden] {
     display: none;
 }
 
+.overlay h2 {
+    font-size: clamp(24px, 5vw, 44px);
+    color: #f04f4f;
+    letter-spacing: 2px;
+}
+
+.overlay p {
+    color: #999ba8;
+}
+
+
+/* ===== WEAPON SELECT WINDOW ===== */
+
+/* Full-page layer behind the window */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    background: rgba(16, 17, 22, 0.85);
+}
+
+.modal[hidden] {
+    display: none;
+}
+
+.weapon-window {
+    width: 100%;
+    max-width: 760px;
+    max-height: 100%;
+    overflow-y: auto;          /* scrolls on small screens */
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    background: #191d1b;
+    border: 2px solid #343641;
+    border-radius: 10px;
+    box-shadow: 0 0 35px #0008;
+}
+
+.weapon-window h2 {
+    color: #f04f4f;
+    letter-spacing: 2px;
+}
+
+.weapon-list {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));   /* 3 in a row on desktop, stacked on phones */
+    gap: 16px;
+}
+
+.weapon-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    background: #101116;
+    border: 2px solid #343641;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.weapon-card.selected {
+    border-color: #f04f4f;
+}
+
+.weapon-card h3 {
+    color: #f1f1f1;
+    letter-spacing: 1px;
+}
+
+.weapon-card p {
+    flex: 1;                   /* pushes stats and button to the bottom so all cards line up */
+    color: #999ba8;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.weapon-stats {
+    color: #858794;
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+
+
+/* ===== RESPONSIVE ===== */
+
+/* Touch devices: show the joysticks and the touch controls text */
 @media (hover: none) and (pointer: coarse) {
     .touch-controls {
         display: flex;
     }
-}
 
-@media (hover: none) and (pointer: coarse) {
     .controls-desktop {
         display: none;
     }
@@ -220,19 +316,7 @@ h1 {
     }
 }
 
-/* For Overlay */
-@media (max-width: 600px) {
-    .overlay {
-        gap: 8px;
-    }
-
-    .menu-button {
-        padding: 8px 20px;
-        font-size: 14px;
-    }
-}
-
-/* For images  */
+/* Small screens */
 @media (max-width: 600px) {
     body {
         padding: 8px;
@@ -256,5 +340,13 @@ h1 {
     .game-footer {
         flex-direction: column;
     }
-}
 
+    .overlay {
+        gap: 8px;
+    }
+
+    .menu-button {
+        padding: 8px 20px;
+        font-size: 14px;
+    }
+}

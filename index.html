@@ -40,6 +40,7 @@
                 <h2>Project: Web Survival</h2>
                 <p>How long can you survive?</p>
                 <button class="menu-button" id="startButton">START</button>
+                <button class="menu-button secondary" id="weaponButton">WEAPON</button>
             </div>
 
             <div class="overlay" id="gameOverOverlay" hidden>
@@ -65,5 +66,12 @@
             <p>OBJECTIVE: SURVIVE</p>
         </footer>
     </main>
+    <div class="modal" id="weaponOverlay" hidden>
+        <div class="weapon-window">
+            <h2>SELECT WEAPON</h2>
+            <div class="weapon-list" id="weaponList"></div>
+            <button class="menu-button secondary" id="weaponBackButton">BACK</button>
+        </div>
+    </div>
 </body>
 </html>
