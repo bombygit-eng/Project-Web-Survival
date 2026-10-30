@@ -36,6 +36,33 @@
                 Your browser does not support HTML Canvas.
             </canvas>
 
+            <div class="upgrade-hud">
+                <div class="upgrade-stat">
+                    <span>DMG</span>
+                    <strong id="hudDamage">x1.00</strong>
+                </div>
+
+                <div class="upgrade-stat">
+                    <span>SPD</span>
+                    <strong id="hudSpeed">x1.00</strong>
+                </div>
+
+                <div class="upgrade-stat">
+                    <span>PEL</span>
+                    <strong id="hudPellets">+0</strong>
+                </div>
+
+                <div class="upgrade-stat">
+                    <span>PEL NEXT</span>
+                    <strong id="hudPelletProgress">0/4</strong>
+                </div>
+
+                <div class="upgrade-stat">
+                    <span>SCORE</span>
+                    <strong id="hudScoreMultiplier">x1</strong>
+                </div>
+            </div>
+
             <div class="overlay" id="menuOverlay">
                 <h2>Project: Web Survival</h2>
                 <p>How long can you survive?</p>
@@ -66,6 +93,51 @@
             <p>OBJECTIVE: SURVIVE</p>
         </footer>
     </main>
+    <div class="modal" id="classOverlay" hidden>
+        <div class="weapon-window">
+            <h2>SELECT CLASS</h2>
+            <div class="weapon-list" id="classList"></div>
+            <button class="menu-button secondary" id="classBackButton">BACK</button>
+        </div>
+    </div>
+    <div class="modal" id="weaponRewardOverlay" hidden>
+        <div class="weapon-window">
+            <h2>NEW WEAPON FOUND!</h2>
+
+            <h3 id="rewardWeaponName">WEAPON NAME</h3>
+
+            <p>What would you like to do?</p>
+
+            <button class="menu-button" id="equipWeaponButton">
+                EQUIP WEAPON
+            </button>
+
+            <button class="menu-button secondary" id="keepWeaponButton">
+                KEEP CURRENT WEAPON
+            </button>
+        </div>
+    </div>
+    <div class="modal" id="weaponBonusOverlay" hidden>
+        <div class="weapon-window">
+            <h2>CHOOSE A BONUS</h2>
+
+            <button class="menu-button" id="bonusDamageButton">
+                DAMAGE UP
+            </button>
+
+            <button class="menu-button" id="bonusSpeedButton">
+                ATTACK SPEED UP
+            </button>
+
+            <button class="menu-button" id="bonusPelletButton">
+                EXTRA PELLET
+            </button>
+
+            <button class="menu-button" id="bonusScoreButton">
+                SCORE BONUS
+            </button>
+        </div>
+    </div>
     <div class="modal" id="weaponOverlay" hidden>
         <div class="weapon-window">
             <h2>SELECT WEAPON</h2>

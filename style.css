@@ -218,6 +218,39 @@ h1 {
     color: #999ba8;
 }
 
+/* ===== HUD UPGRADES ===== */
+
+.upgrade-hud {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 2;
+
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 8px;
+
+    padding: 10px;
+    background: rgba(16, 17, 22, 0.8);
+    border: 1px solid #ffffff30;
+    border-radius: 8px;
+
+    font-size: 13px;
+}
+
+.upgrade-stat {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.upgrade-stat span {
+    color: #aeb3bd;
+}
+
+.upgrade-stat strong {
+    color: #ffffff;
+}
 
 /* ===== WEAPON SELECT WINDOW ===== */
 
@@ -348,5 +381,17 @@ h1 {
     .menu-button {
         padding: 8px 20px;
         font-size: 14px;
+    }
+
+    .upgrade-hud {
+        top: 6px;
+        left: 6px;
+        gap: 5px;
+        padding: 6px;
+        font-size: 10px;
+    }
+
+    .upgrade-stat {
+        gap: 6px;
     }
 }

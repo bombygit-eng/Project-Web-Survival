@@ -7,10 +7,26 @@ context.imageSmoothingEnabled = false;
 const menuOverlay = document.getElementById("menuOverlay");
 const gameOverOverlay = document.getElementById("gameOverOverlay");
 const finalScoreDisplay = document.getElementById("finalScore");
+const classOverlay = document.getElementById("classOverlay");
+const classList = document.getElementById("classList");
+const classBackButton = document.getElementById("classBackButton");
 const weaponOverlay = document.getElementById("weaponOverlay");
 const weaponList = document.getElementById("weaponList");
 const weaponButton = document.getElementById("weaponButton");
-
+const hudDamage = document.getElementById("hudDamage");
+const hudSpeed = document.getElementById("hudSpeed");
+const hudPellets = document.getElementById("hudPellets");
+const hudPelletProgress = document.getElementById("hudPelletProgress");
+const hudScoreMultiplier = document.getElementById("hudScoreMultiplier");
+const weaponRewardOverlay = document.getElementById("weaponRewardOverlay");
+const rewardWeaponName = document.getElementById("rewardWeaponName");
+const equipWeaponButton = document.getElementById("equipWeaponButton");
+const keepWeaponButton = document.getElementById("keepWeaponButton");
+const weaponBonusOverlay = document.getElementById("weaponBonusOverlay");
+const bonusDamageButton = document.getElementById("bonusDamageButton");
+const bonusSpeedButton = document.getElementById("bonusSpeedButton");
+const bonusPelletButton = document.getElementById("bonusPelletButton");
+const bonusScoreButton = document.getElementById("bonusScoreButton");
 
 // ===== CONSTANTS =====
 // Canvas dimensions (must come before anything that uses them)
@@ -32,12 +48,18 @@ const ANIMATION_FPS = 8;   // frames per second of the animation
 // Player settings
 const PLAYER_START_HEALTH = 3;
 
+//Pick-Ups
+const PICKUP_DROP_CHANCE = 0.10; // 10% chance when an enemy dies to drop a power-up
+const PICKUP_SIZE = 24;
+
 
 // ===== GAME STATE =====
 // Game state
 const game = {
     state: "menu",   // "menu" | "weaponSelect" | "playing" | "gameover"
+    selectedClass: "guns",
     selectedWeapon: "pistol",
+    pendingWeapon: null,
     score: 0,
     health: PLAYER_START_HEALTH
 };
@@ -63,6 +85,20 @@ let spawnTimer = 0;
 const bullets = [];
 let fireTimer = 0;
 
+//Pick-Ups
+const pickups = [];
+const weaponDrops = [];
+
+let damageMultiplier = 1;
+let attackSpeedMultiplier = 1;
+let pelletBonus = 0;
+let pelletPickupCount = 0;
+let scoreMultiplier = 1;
+
+let pickupMessage = "";
+let pickupMessageTimer = 0;
+
+const PELLETS_REQUIRED = 4;
 
 // ===== ASSETS & ANIMATION =====
 const playerImage = new Image();
@@ -128,6 +164,34 @@ function getFrame(frames, time) {
 }
 
 // ===== DATA TABLES =====
+const WEAPON_CLASSES = {
+    guns: {
+        name: "Guns",
+        startingWeapon: "pistol",
+        weapons: ["pistol", "shotgun", "smg"]
+    },
+    bows: {
+        name: "Bows",
+        startingWeapon: "short_bow",
+        weapons: ["short_bow", "long_bow", "crossbow"]
+    },
+    staffs: {
+        name: "Staffs",
+        startingWeapon: "fire_staff",
+        weapons: ["fire_staff", "ice_staff", "lightning_staff"]
+    },
+    sharp: {
+        name: "Sharp",
+        startingWeapon: "knife",
+        weapons: ["knife", "shuriken", "tomahawk"]
+    },
+    melee: {
+        name: "Melee",
+        startingWeapon: "sword",
+        weapons: ["sword", "war_axe", "war_hammer"] 
+    }
+};
+
 const WEAPONS = {
     pistol: {
         name: "Pistol",
@@ -164,13 +228,14 @@ const WEAPONS = {
 
 const ENEMY_TYPES = {
     fly: {
-        speed: 90,           // slower than the player (220) so you can escape
-        hp: 4,
-        size: 28,
-        color: "#f04f4f",    // fallback square while images load
-        scoreMin: 1,
-        scoreMax: 10,
-        frames: flyFrames
+    speed: 90,
+    hp: 4,
+    size: 28,
+    color: "#f04f4f",
+    scoreMin: 1,
+    scoreMax: 10,
+    weaponDropChance: 1.0,
+    frames: flyFrames
     },
     tank: {
         speed: 45,           // slower than the player (220) so you can escape
@@ -179,6 +244,7 @@ const ENEMY_TYPES = {
         color: "#f04f4f",    // fallback square while images load
         scoreMin: 5,
         scoreMax: 25,
+        weaponDropChance: 0.04,
         frames: tankFrames
     },
     speedy: {
@@ -188,7 +254,27 @@ const ENEMY_TYPES = {
         color: "#f04f4f",    // fallback square while images load
         scoreMin: 1,
         scoreMax: 15,
+        weaponDropChance: 0.03,
         frames: speedyFrames
+    }
+};
+
+const PICKUP_TYPES = {
+    damage: {
+        label: "DMG",
+        color: "#ff595e"
+    },
+    attackSpeed: {
+        label: "SPD",
+        color: "#4ecdc4"
+    },
+    pellets: {
+        label: "+",
+        color: "#ffd166"
+    },
+    scoreMultiplier: {
+        label: "x2",
+        color: "#a78bfa"
     }
 };
 
@@ -382,6 +468,47 @@ function updateAim() {
     }
 }
 
+// ===== PICKUPS =====
+
+function spawnPickup(x, y) {
+    const pickupIds = Object.keys(PICKUP_TYPES);
+    const randomIndex = Math.floor(Math.random() * pickupIds.length);
+    const randomType = pickupIds[randomIndex];
+
+    pickups.push({
+        x: x,
+        y: y,
+        width: PICKUP_SIZE,
+        height: PICKUP_SIZE,
+        type: randomType
+    });
+}
+
+function spawnWeaponDrop(x, y) {
+    const weaponClass = WEAPON_CLASSES[game.selectedClass];
+
+    // Get weapons from the selected class, excluding the current weapon
+    const availableWeapons = weaponClass.weapons.filter(
+        id => id !== game.selectedWeapon && WEAPONS[id]
+    );
+
+    // No alternative weapons available
+    if (availableWeapons.length === 0) return;
+
+    const weaponId = availableWeapons[
+        randomInt(0, availableWeapons.length - 1)
+    ];
+
+    // Store the dropped weapon and its position
+    weaponDrops.push({
+        x,
+        y,
+        weaponId,
+        radius: 16,
+        width: 32,
+        height: 32
+    });
+}
 
 // ===== ENEMIES =====
 function createEnemy(typeId, x, y) {
@@ -463,6 +590,64 @@ function isColliding(a, b) {
            Math.abs(a.y - b.y) < (a.height + b.height) / 2;
 }
 
+function updatePickups() {
+    for (let i = pickups.length - 1; i >= 0; i--) {
+        const pickup = pickups[i];
+
+        if (isColliding(player, pickup)) {
+            if (pickup.type === "damage") {
+                damageMultiplier += 0.25;
+                showPickupMessage("DAMAGE UP!");
+            }
+
+            if (pickup.type === "attackSpeed") {
+                attackSpeedMultiplier += 0.20;
+                showPickupMessage("SPEED UP!");
+            }
+
+            if (pickup.type === "pellets") {
+                pelletPickupCount++;
+
+                if (pelletPickupCount >= PELLETS_REQUIRED) {
+                    pelletBonus++;
+                    pelletPickupCount = 0;
+                    showPickupMessage("BULLET COUNT UP!");
+                } else {
+                    showPickupMessage(
+                        "PELLETS: " + pelletPickupCount + "/" + PELLETS_REQUIRED
+                    );
+                }
+            }  
+
+            if (pickup.type === "scoreMultiplier") {
+                scoreMultiplier *= 2;
+                showPickupMessage("SCORE x" + scoreMultiplier + "!");
+            }
+            pickups.splice(i, 1);
+            updateUpgradeHUD();
+        } 
+    }
+}
+
+function updateWeaponDrops() {
+    for (let i = weaponDrops.length - 1; i >= 0; i--) {
+        const drop = weaponDrops[i];
+
+        if (isColliding(player, drop)) {
+            // Remember which weapon was collected
+            game.pendingWeapon = drop.weaponId;
+
+            // Remove it from the arena
+            weaponDrops.splice(i, 1);
+
+            // Open the weapon choice screen
+            setState("weaponReward");
+
+            break;
+        }
+    }
+}
+
 function updatePlayerCollisions(dt) {
     // Tick the immunity timer down
     if (player.immunityTimer > 0) {
@@ -498,9 +683,16 @@ function shoot() {
     const weapon = player.weapon;
     const baseAngle = Math.atan2(aim.y, aim.x);
 
-    for (let i = 0; i < weapon.pellets; i++) {
-        // Random angle inside the weapon's spread cone (± half the spread)
-        const angle = baseAngle + (Math.random() - 0.5) * weapon.spread;
+    // Total number of bullets, including upgrades
+    const totalPellets = weapon.pellets + pelletBonus;
+
+    // Give extra bullets a little spread if the weapon is normally accurate
+    const spread = weapon.spread > 0
+        ? weapon.spread
+        : (totalPellets > 1 ? 12 * Math.PI / 180 : 0);
+
+    for (let i = 0; i < totalPellets; i++) {
+        const angle = baseAngle + (Math.random() - 0.5) * spread;
 
         bullets.push({
             x: player.x,
@@ -508,9 +700,10 @@ function shoot() {
             vx: Math.cos(angle) * weapon.bulletSpeed,
             vy: Math.sin(angle) * weapon.bulletSpeed,
             radius: weapon.bulletRadius,
-            damage: weapon.damage
+            damage: weapon.damage * damageMultiplier
         });
     }
+
     playShootSound();
 }
 
@@ -521,7 +714,7 @@ function updateShooting(dt) {
 
     if (aim.firing && fireTimer <= 0) {
         shoot();
-        fireTimer = player.weapon.cooldown;
+        fireTimer = player.weapon.cooldown / attackSpeedMultiplier; // We want the cooldown to become shorter;
     }
 }
 
@@ -551,10 +744,25 @@ function updateBullets(dt) {
                 enemy.hp -= bullet.damage;
 
                 if (enemy.hp <= 0) {
+                    // Save the enemy's position before removing it
+                    const enemyX = enemy.x;
+                    const enemyY = enemy.y;
+
                     enemies.splice(j, 1);
-                    addScore(randomInt(enemy.type.scoreMin, enemy.type.scoreMax));
+
+                    addScore(randomInt(enemy.type.scoreMin, enemy.type.scoreMax) * scoreMultiplier);
                     playEnemyDeathSound();
-                } else {
+
+                    // Random chance to drop a pickup
+                    if (Math.random() < PICKUP_DROP_CHANCE) {
+                        spawnPickup(enemyX, enemyY);
+                    }
+                    // Random chance to drop a weapon
+                    if (Math.random() < enemy.type.weaponDropChance) {
+                        spawnWeaponDrop(enemyX, enemyY);
+                    }
+                }
+                else {
                     enemy.hitTimer = 0.08;     // brief flash
                     playHitSound();
                 }
@@ -573,12 +781,57 @@ function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// ===== HUD ELEMENTS =====
+function updateUpgradeHUD() {
+    hudDamage.textContent = "x" + damageMultiplier.toFixed(2);
+    hudSpeed.textContent = "x" + attackSpeedMultiplier.toFixed(2);
+    hudPellets.textContent = "+" + pelletBonus;
+
+    hudPelletProgress.textContent =
+        pelletPickupCount + "/" + PELLETS_REQUIRED;
+
+    hudScoreMultiplier.textContent = "x" + scoreMultiplier;
+}
+
+function drawPickupMessage() {
+    if (pickupMessageTimer <= 0) return;
+
+    context.save();
+
+    context.globalAlpha = Math.min(1, pickupMessageTimer);
+    context.font = "bold 20px Arial";
+    context.textAlign = "center";
+    context.fillStyle = "#ffffff";
+    context.shadowColor = "#000000";
+    context.shadowBlur = 5;
+
+    context.fillText(
+        pickupMessage,
+        player.x,
+        player.y - 45
+    );
+
+    context.restore();
+}
+
+function showPickupMessage(message) {
+    pickupMessage = message;
+    pickupMessageTimer = 1.5;
+}
+
 // ===== GAME STATES & MENUS =====
 function resetGame() {
     // Stats and HUD
     game.score = 0;
+    damageMultiplier = 1;
+    attackSpeedMultiplier = 1;
+    pelletBonus = 0;
+    pelletPickupCount = 0;
+    scoreMultiplier = 1;
     game.health = PLAYER_START_HEALTH;
     scoreDisplay.textContent = game.score;
+    pickupMessage = "";
+    pickupMessageTimer = 0;
     updateHealthDisplay();
 
     // Player
@@ -592,8 +845,12 @@ function resetGame() {
     // World (arrays are const, so empty them in place)
     enemies.length = 0;
     bullets.length = 0;
+    pickups.length = 0;
+    weaponDrops.length = 0;
     spawnTimer = 0;
     fireTimer = 0;
+
+    updateUpgradeHUD();
 }
 
 // Shows the chosen weapon on the main menu button
@@ -601,68 +858,161 @@ function updateWeaponButton() {
     weaponButton.textContent = "WEAPON: " + WEAPONS[game.selectedWeapon].name.toUpperCase();
 }
 
-function selectWeapon(id) {
-    game.selectedWeapon = id;
-    setState("menu");   // closes the window and refreshes the menu button
+function selectWeapon(classId, weaponId) {
+    game.selectedClass = classId;
+    game.selectedWeapon = weaponId;
+    setState("menu");
 }
 
-// Builds one card per entry in WEAPONS, so new weapons appear automatically
-function buildWeaponCards() {
-    weaponList.replaceChildren();
+// Builds one card per entry in WEAPON_CLASSES, so new classes appear automatically
+function buildClassCards() {
+    classList.replaceChildren();
 
-    for (const [id, weapon] of Object.entries(WEAPONS)) {
-        const isSelected = id === game.selectedWeapon;
-
+    for (const [id, weaponClass] of Object.entries(WEAPON_CLASSES)) {
         const card = document.createElement("div");
-        card.className = "weapon-card" + (isSelected ? " selected" : "");
+        card.className = "weapon-card";
 
         const title = document.createElement("h3");
-        title.textContent = weapon.name;
+        title.textContent = weaponClass.name;
 
         const description = document.createElement("p");
-        description.textContent = weapon.description;
-
-        // Stats come from the table, so they always match the real values
-        const stats = document.createElement("div");
-        stats.className = "weapon-stats";
-        const pelletText = weapon.pellets > 1 ? " × " + weapon.pellets : "";
-        stats.textContent = weapon.damage + " dmg" + pelletText +
-                            " · " + (1 / weapon.cooldown).toFixed(1) + " shots/second";
+        description.textContent =
+            weaponClass.weapons.length + " available weapons";
 
         const button = document.createElement("button");
         button.className = "menu-button";
-        button.textContent = isSelected ? "SELECTED" : "SELECT";
-        button.addEventListener("click", () => selectWeapon(id));
+        button.textContent = "SELECT";
 
-        card.append(title, description, stats, button);
-        weaponList.append(card);
+        button.addEventListener("click", () => {
+            game.selectedClass = id;
+            game.selectedWeapon = weaponClass.startingWeapon;
+            setState("weaponSelect");
+        });
+
+        card.append(title, description, button);
+        classList.append(card);
     }
 }
+
+// Builds one card per entry in WEAPONS, so new weapons appear automatically
+    function buildWeaponCards() {
+        weaponList.replaceChildren();
+
+        const selectedClass = WEAPON_CLASSES[game.selectedClass];
+
+        for (const id of selectedClass.weapons) {
+            const weapon = WEAPONS[id];
+            const isSelected = id === game.selectedWeapon;
+
+            const card = document.createElement("div");
+            card.className = "weapon-card" + (isSelected ? " selected" : "");
+
+            const title = document.createElement("h3");
+            title.textContent = weapon.name;
+
+            const description = document.createElement("p");
+            description.textContent = weapon.description;
+
+            // Stats come from the table, so they always match the real values
+            const stats = document.createElement("div");
+            stats.className = "weapon-stats";
+            const pelletText = weapon.pellets > 1 ? " × " + weapon.pellets : "";
+            stats.textContent = weapon.damage + " dmg" + pelletText +
+                                " · " + (1 / weapon.cooldown).toFixed(1) + " shots/second";
+
+            const button = document.createElement("button");
+            button.className = "menu-button";
+            button.textContent = isSelected ? "SELECTED" : "SELECT";
+            button.addEventListener("click", () => selectWeapon(game.selectedClass, id));
+            
+            card.append(title, description, stats, button);
+            weaponList.append(card);
+        }
+    }
 
 // Every state change goes through here, so the side effects live in one place
 function setState(newState) {
     game.state = newState;
 
     menuOverlay.hidden = newState !== "menu";
+    classOverlay.hidden = newState !== "classSelect";
     weaponOverlay.hidden = newState !== "weaponSelect";
     gameOverOverlay.hidden = newState !== "gameover";
+    weaponRewardOverlay.hidden = newState !== "weaponReward";
+    weaponBonusOverlay.hidden = newState !== "weaponBonus";
 
     if (newState === "menu") {
         updateWeaponButton();
+    } else if (newState === "classSelect") {
+        buildClassCards();
     } else if (newState === "weaponSelect") {
         buildWeaponCards();
+    } else if (newState === "weaponReward") {
+        const weapon = WEAPONS[game.pendingWeapon];
+        rewardWeaponName.textContent = weapon.name.toUpperCase();
     } else if (newState === "playing") {
-        resetGame();
+    // Resume gameplay without resetting
     } else if (newState === "gameover") {
         finalScoreDisplay.textContent = game.score;
     }
-}
+}   
 
-document.getElementById("startButton").addEventListener("click", () => setState("playing"));
+document.getElementById("startButton").addEventListener("click", () =>
+    {
+        resetGame();
+        setState("playing")
+    });
 document.getElementById("restartButton").addEventListener("click", () => setState("playing"));
 document.getElementById("menuButton").addEventListener("click", () => setState("menu"));
-document.getElementById("weaponButton").addEventListener("click", () => setState("weaponSelect"));
 document.getElementById("weaponBackButton").addEventListener("click", () => setState("menu"));
+weaponButton.addEventListener("click", () => setState("classSelect"));
+classBackButton.addEventListener("click", () => setState("menu"));
+equipWeaponButton.addEventListener("click", () => {
+    const weaponId = game.pendingWeapon;
+
+    // Equip the new weapon
+    player.weapon = { ...WEAPONS[weaponId] };
+
+    // Update the currently selected weapon
+    game.selectedWeapon = weaponId;
+
+    // Clear the temporary reward
+    game.pendingWeapon = null;
+
+    // Resume the game
+    setState("playing");
+});
+
+keepWeaponButton.addEventListener("click", () => {
+    // Open the bonus selection screen
+    setState("weaponBonus");
+});
+
+bonusDamageButton.addEventListener("click", () => {
+    damageMultiplier += 0.5;
+    finishWeaponBonus();
+});
+
+bonusSpeedButton.addEventListener("click", () => {
+    attackSpeedMultiplier += 0.5;
+    finishWeaponBonus();
+});
+
+bonusPelletButton.addEventListener("click", () => {
+    pelletBonus++;
+    finishWeaponBonus();
+});
+
+bonusScoreButton.addEventListener("click", () => {
+    addScore(500);
+    finishWeaponBonus();
+});
+
+function finishWeaponBonus() {
+    game.pendingWeapon = null;
+    updateUpgradeHUD();
+    setState("playing");
+}
 
 // ===== MAIN UPDATE =====
 // Update game logic (dt = deltaTime)
@@ -701,6 +1051,10 @@ function update(dt) {
         player.animTime = 0;   // standing still: back to the first frame
     }
 
+    if (pickupMessageTimer > 0) {
+        pickupMessageTimer -= dt;
+    }
+
     // Face the mouse, since you shoot where you aim
     player.facing = aim.x < 0 ? -1 : 1; 
     
@@ -719,6 +1073,8 @@ function update(dt) {
 
     //Collisions and game mechanics
     updatePlayerCollisions(dt);
+    updatePickups();
+    updateWeaponDrops();
     updateShooting(dt);
     updateBullets(dt);
 
@@ -798,6 +1154,72 @@ function drawEnemies() {
     }
 }
 
+function drawPickups() {
+    for (const pickup of pickups) {
+        const type = PICKUP_TYPES[pickup.type];
+
+        // Pickup body
+        context.fillStyle = type.color;
+        context.beginPath();
+        context.arc(
+            pickup.x,
+            pickup.y,
+            pickup.width / 2,
+            0,
+            Math.PI * 2
+        );
+        context.fill();
+
+        // Dark outline
+        context.strokeStyle = "#202020";
+        context.lineWidth = 2;
+        context.stroke();
+
+        // Pickup label
+        context.fillStyle = "#202020";
+        context.font = "bold 10px Arial";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(type.label, pickup.x, pickup.y);
+    }
+}
+
+function drawWeaponDrops() {
+    for (const drop of weaponDrops) {
+        const weapon = WEAPONS[drop.weaponId];
+
+        // Weapon name above the square
+        context.fillStyle = "#FFFFFF";
+        context.font = "bold 11px Arial";
+        context.textAlign = "center";
+        context.textBaseline = "bottom";
+        context.fillText(
+            weapon.name.toUpperCase(),
+            drop.x,
+            drop.y - drop.radius - 5
+        );
+
+        // Grey square
+        context.fillStyle = "#888888";
+        context.fillRect(
+            drop.x - drop.radius,
+            drop.y - drop.radius,
+            drop.radius * 2,
+            drop.radius * 2
+        );
+
+        // Dark outline
+        context.strokeStyle = "#202020";
+        context.lineWidth = 2;
+        context.strokeRect(
+            drop.x - drop.radius,
+            drop.y - drop.radius,
+            drop.radius * 2,
+            drop.radius * 2
+        );
+    }
+}
+
 function drawPlayer() {
     // Blink while immune
     if (player.immunityTimer > 0 && Math.floor(player.immunityTimer * 20) % 2 === 0) {
@@ -855,14 +1277,42 @@ function drawGameOver() {
     context.fillText("Score: " + game.score, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 35);
 }
 
+function drawPickupMessage() {
+    if (pickupMessageTimer <= 0) return;
+
+    context.save();
+
+    context.globalAlpha = Math.min(1, pickupMessageTimer);
+    context.font = "bold 20px Arial";
+    context.textAlign = "center";
+    context.fillStyle = "#ffffff";
+    context.shadowColor = "#000000";
+    context.shadowBlur = 5;
+
+    context.fillText(
+        pickupMessage,
+        player.x,
+        player.y - 45
+    );
+
+    context.restore();
+}
+
+function showPickupMessage(message) {
+    pickupMessage = message;
+    pickupMessageTimer = 1.5;
+}
+
 // Draw everything
 function draw() {
     drawBackground();
+    drawPickups();
+    drawWeaponDrops();
     drawEnemies();
     drawPlayer();
     drawAimArrow();
     drawBullets();
-    
+    drawPickupMessage()
 }
 
 
