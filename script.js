@@ -39,8 +39,11 @@ const GRID_COLOR = "#6a7b72";
 
 // Gameplay settings
 const SPAWN_MARGIN = 20;
-const SPAWN_INTERVAL = 1.5;
+const SPAWN_INTERVAL = 3;
 const PLAYER_IMMUNITY_TIME = 1.5;
+const SPITTER_ATTACK_RANGE = 450;
+const SPITTER_ATTACK_COOLDOWN = 2;
+const SPITTER_PROJECTILE_SPEED = 250;
 
 // Animation settings
 const ANIMATION_FPS = 8;   // frames per second of the animation
@@ -84,6 +87,7 @@ let spawnTimer = 0;
 //Bullets
 const bullets = [];
 let fireTimer = 0;
+const projectiles = []; //enemy (Spitter)
 
 //Pick-Ups
 const pickups = [];
@@ -168,7 +172,7 @@ const WEAPON_CLASSES = {
     guns: {
         name: "Guns",
         startingWeapon: "pistol",
-        weapons: ["pistol", "shotgun", "smg"]
+    weapons: ["pistol", "shotgun", "smg", "revolver", "sniper"] 
     },
     bows: {
         name: "Bows",
@@ -195,67 +199,115 @@ const WEAPON_CLASSES = {
 const WEAPONS = {
     pistol: {
         name: "Pistol",
-        description: "Slow but accurate. Every bullet hits hard, so good aim pays off.",    
-        cooldown: 1,       // seconds between shots
-        damage: 2,           // health removed from an enemy per bullet
-        bulletSpeed: 500,    // px per second
-        bulletRadius: 6,
-        pellets: 1,          // bullets fired per shot
-        spread: 0            // cone width in radians (0 = perfectly accurate)
+        description: "A reliable sidearm. Balanced damage, good accuracy and a comfortable firing speed.",
+        cooldown: 0.65,
+        damage: 2,
+        bulletSpeed: 550,
+        bulletRadius: 5,
+        pellets: 1,
+        spread: 0,
+        range: 450
     },
+
+    revolver: {
+        name: "Revolver",
+        description: "A powerful hand cannon. Deals heavy damage, but fires slowly.",
+        cooldown: 1.2,
+        damage: 5,
+        bulletSpeed: 650,
+        bulletRadius: 6,
+        pellets: 1,
+        spread: 0,
+        range: 600
+    },
+
     shotgun: {
         name: "Shotgun",
-        description: "A wide burst of 5 pellets. Best up close, where most of them land.",    
-        cooldown: 2,       // seconds between shots
-        damage: 1,           // health removed from an enemy per bullet
-        bulletSpeed: 500,    // px per second
-        bulletRadius: 2,
-        pellets: 5,          // bullets fired per shot
-        spread: 50 * Math.PI / 180
+        description: "Fires five powerful pellets in a wide spread. Devastating up close, weak at long range.",
+        cooldown: 1.5,
+        damage: 1.5,
+        bulletSpeed: 500,
+        bulletRadius: 1,
+        pellets: 5,
+        spread: 50 * Math.PI / 180,
+        range: 260
     },
+
     smg: {
         name: "SMG",
-        description: "A fast, spraying stream. Low damage per bullet, but it never stops.",    
-        cooldown: 0.4,       // seconds between shots
-        damage: 1,           // health removed from an enemy per bullet
-        bulletSpeed: 500,    // px per second
-        bulletRadius: 4,
-        pellets: 1,          // bullets fired per shot
-        spread: 8 * Math.PI / 180
-              
+        description: "Unleashes a rapid stream of bullets. Great against groups, but less accurate.",
+        cooldown: 0.2,
+        damage: 0.8,
+        bulletSpeed: 500,
+        bulletRadius: 3,
+        pellets: 1,
+        spread: 12 * Math.PI / 180,
+        range: 400
     },
+
+    sniper: {
+        name: "Sniper Rifle",
+        description: "An extremely powerful precision weapon. Long range and devastating damage, but very slow firing.",
+        cooldown: 2.0,
+        damage: 12,
+        bulletSpeed: 900,
+        bulletRadius: 7,
+        pellets: 1,
+        spread: 0,
+        range: 900
+    }
+};
+
+const ENEMY_SPAWN_RULES = {
+    fly:     { weight: 50, count: 1 }, // weight is the chance of spawning
+    tank:    { weight: 25, count: 1 },
+    speedy:  { weight: 5, count: 3 },
+    spitter: { weight: 30, count: 1 }
 };
 
 const ENEMY_TYPES = {
     fly: {
-    speed: 90,
-    hp: 4,
-    size: 28,
-    color: "#f04f4f",
-    scoreMin: 1,
-    scoreMax: 10,
-    weaponDropChance: 1.0,
-    frames: flyFrames
+        speed: 90,
+        hp: 6,
+        size: 28,
+        color: "#f04f4f",
+        scoreMin: 1,
+        scoreMax: 10,
+        weaponDropChance: 0.02,
+        frames: flyFrames
     },
+
     tank: {
-        speed: 45,           // slower than the player (220) so you can escape
-        hp: 10,
+        speed: 45,
+        hp: 30,
         size: 56,
-        color: "#f04f4f",    // fallback square while images load
+        color: "#f04f4f",
         scoreMin: 5,
-        scoreMax: 25,
-        weaponDropChance: 0.04,
+        scoreMax: 30,
+        weaponDropChance: 0.10,
         frames: tankFrames
     },
+
     speedy: {
-        speed: 200,             // slower than the player (220) so you can escape
-        hp: 2,
+        speed: 190,
+        hp: 3,
         size: 14,
-        color: "#f04f4f",    // fallback square while images load
+        color: "#f04f4f",
         scoreMin: 1,
         scoreMax: 15,
         weaponDropChance: 0.03,
         frames: speedyFrames
+    },
+
+    spitter: {
+        speed: 75,
+        hp:5,
+        size: 35,
+        color: "#f04f4f",
+        scoreMin: 1,
+        scoreMax: 15,
+        weaponDropChance: 0.03,
+        frames: tankFrames
     }
 };
 
@@ -515,46 +567,63 @@ function createEnemy(typeId, x, y) {
     const type = ENEMY_TYPES[typeId];
 
     return {
+        typeId: typeId,
         type: type,
         x: x,
         y: y,
+        attackCooldown: 1,
         width: type.size,
         height: type.size,
         speed: type.speed,
         hp: type.hp,
         color: type.color,
-        hitTimer: 0,                    // > 0 briefly after being hit (for the flash)
-        animTime: Math.random() * 10,   // random start so enemies don't flap in sync
+        hitTimer: 0,
+        animTime: Math.random() * 10,
         facing: 1
     };
 }
 
+function chooseEnemyType() {
+    const totalWeight = Object.values(ENEMY_SPAWN_RULES)
+        .reduce((total, rule) => total + rule.weight, 0);
+
+    let random = Math.random() * totalWeight;
+
+    for (const [type, rule] of Object.entries(ENEMY_SPAWN_RULES)) {
+        random -= rule.weight;
+
+        if (random < 0) {
+            return { type, count: rule.count };
+        }
+    }
+}
+
 // Spawn enemies inside or outside arena borders
 function spawnEnemy() {
-    const side = Math.floor(Math.random() * 4);   // 0=top, 1=right, 2=bottom, 3=left
-    // Random offset from -MARGIN (inside) to +MARGIN (outside)
-    const offset = (Math.random() * 2 - 1) * SPAWN_MARGIN;
-    const enemyTypes = Object.keys(ENEMY_TYPES);
-    const randomIndex = Math.floor(Math.random() * enemyTypes.length);
-    const randomType = enemyTypes[randomIndex];
+    const selected = chooseEnemyType();
 
-    let x, y;
+    for (let i = 0; i < selected.count; i++) {
+        const side = Math.floor(Math.random() * 4);
+        const offset = (Math.random() * 2 - 1) * SPAWN_MARGIN;
 
-    if (side === 0) {            // top
-        x = Math.random() * GAME_WIDTH;
-        y = -offset;
-    } else if (side === 1) {     // right
-        x = GAME_WIDTH + offset;
-        y = Math.random() * GAME_HEIGHT;
-    } else if (side === 2) {     // bottom
-        x = Math.random() * GAME_WIDTH;
-        y = GAME_HEIGHT + offset;
-    } else {                     // left
-        x = -offset;
-        y = Math.random() * GAME_HEIGHT;
+        let x, y;
+
+        if (side === 0) {
+            x = Math.random() * GAME_WIDTH;
+            y = -offset;
+        } else if (side === 1) {
+            x = GAME_WIDTH + offset;
+            y = Math.random() * GAME_HEIGHT;
+        } else if (side === 2) {
+            x = Math.random() * GAME_WIDTH;
+            y = GAME_HEIGHT + offset;
+        } else {
+            x = -offset;
+            y = Math.random() * GAME_HEIGHT;
+        }
+
+        enemies.push(createEnemy(selected.type, x, y));
     }
-
-    enemies.push(createEnemy(randomType, x, y));
 }
 
 function updateSpawning(dt) {
@@ -574,11 +643,96 @@ function updateEnemies(dt) {
         enemy.animTime += dt;
         enemy.hitTimer = Math.max(0, enemy.hitTimer - dt);
         enemy.facing = player.x < enemy.x ? -1 : 1;
+        enemy.attackCooldown -= dt;
+        enemy.attackCooldown = Math.max(0, enemy.attackCooldown - dt);
 
-        // Avoid dividing by zero if the enemy is exactly on the player
-        if (distance > 0) {
+        if (distance <= 0) continue;
+
+        // Spitter movement
+        if (enemy.typeId === "spitter") {
+            const preferredDistance = 300;
+            const retreatDistance = 150;
+                    console.log(enemy.type);
+
+            if (distance > preferredDistance) {
+                // Move towards player
+                enemy.x += (distanceX / distance) * enemy.speed * dt;
+                enemy.y += (distanceY / distance) * enemy.speed * dt;
+
+            } else if (distance < retreatDistance) {
+                // Move away from player
+                enemy.x -= (distanceX / distance) * enemy.speed * dt;
+                enemy.y -= (distanceY / distance) * enemy.speed * dt;
+            }
+
+        } else {
+            // All other enemies keep chasing the player
             enemy.x += (distanceX / distance) * enemy.speed * dt;
             enemy.y += (distanceY / distance) * enemy.speed * dt;
+        }
+        
+        if (
+            enemy.typeId === "spitter" &&
+            distance <= SPITTER_ATTACK_RANGE &&
+            distance <= 300 &&
+            distance >= 150 &&
+            enemy.attackCooldown <= 0
+        ) {
+            shootSpitterProjectile(enemy);
+        }
+    }
+}
+
+function shootSpitterProjectile(enemy) {
+    const dx = player.x - enemy.x;
+    const dy = player.y - enemy.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance === 0) return;
+
+    projectiles.push({
+        x: enemy.x,
+        y: enemy.y,
+        vx: (dx / distance) * SPITTER_PROJECTILE_SPEED,
+        vy: (dy / distance) * SPITTER_PROJECTILE_SPEED,
+        radius: 7,
+        damage: 1,
+        distanceTravelled: 0
+    });
+
+    enemy.attackCooldown = SPITTER_ATTACK_COOLDOWN;
+}
+
+function updateProjectiles(dt) {
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        const projectile = projectiles[i];
+
+        const moveX = projectile.vx * dt;
+        const moveY = projectile.vy * dt;
+
+        projectile.x += moveX;
+        projectile.y += moveY;
+
+        projectile.distanceTravelled += Math.hypot(moveX, moveY);
+
+        if (projectile.distanceTravelled >= 450) {
+            projectiles.splice(i, 1);
+        }
+    }
+}
+
+function updateProjectileCollisions() {
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        const projectile = projectiles[i];
+
+        // Check whether the projectile overlaps the player
+        const dx = player.x - projectile.x;
+        const dy = player.y - projectile.y;
+        const distance = Math.hypot(dx, dy);
+
+        if (distance < player.width / 2 + projectile.radius) {
+            damagePlayer();
+            projectiles.splice(i, 1);
         }
     }
 }
@@ -700,7 +854,9 @@ function shoot() {
             vx: Math.cos(angle) * weapon.bulletSpeed,
             vy: Math.sin(angle) * weapon.bulletSpeed,
             radius: weapon.bulletRadius,
-            damage: weapon.damage * damageMultiplier
+            damage: weapon.damage * damageMultiplier,
+            maxRange: weapon.range,
+            distanceTravelled: 0
         });
     }
 
@@ -725,6 +881,20 @@ function updateBullets(dt) {
 
         bullet.x += bullet.vx * dt;
         bullet.y += bullet.vy * dt;
+
+        // Track the actual distance travelled
+        const distanceMoved = Math.hypot(
+            bullet.vx * dt,
+            bullet.vy * dt
+        );
+
+        bullet.distanceTravelled += distanceMoved;
+
+        // Remove bullets that reached their maximum range
+        if (bullet.distanceTravelled >= bullet.maxRange) {
+            bullets.splice(i, 1);
+            continue;
+        }
 
         // Remove bullets that left the arena
         if (bullet.x < 0 || bullet.x > GAME_WIDTH ||
@@ -1070,6 +1240,8 @@ function update(dt) {
     //Enemies
     updateSpawning(dt);
     updateEnemies(dt);
+    updateProjectiles(dt);
+    updateProjectileCollisions();
 
     //Collisions and game mechanics
     updatePlayerCollisions(dt);
@@ -1120,11 +1292,11 @@ function drawBackground() {
 }
 
 function drawSprite(image, x, y, width, height, facing) {
-    if (!(image.complete && image.naturalWidth > 0)) return false;
+    if (!image || !image.complete || image.naturalWidth <= 0) return false;
 
     context.save();
     context.translate(x, y);
-    context.scale(facing, 1);   // facing = -1 mirrors horizontally
+    context.scale(facing, 1);
     context.drawImage(image, -width / 2, -height / 2, width, height);
     context.restore();
     return true;
@@ -1239,6 +1411,22 @@ function drawBullets() {
     }
 }
 
+function drawProjectiles() {
+    for (const projectile of projectiles) {
+        context.fillStyle = "#ff0000";
+
+        context.beginPath();
+        context.arc(
+            projectile.x,
+            projectile.y,
+            projectile.radius,
+            0,
+            Math.PI * 2
+        );
+        context.fill();
+    }
+}
+
 function drawAimArrow() {
     if (!isTouchDevice) return;
 
@@ -1309,6 +1497,7 @@ function draw() {
     drawPickups();
     drawWeaponDrops();
     drawEnemies();
+    drawProjectiles();
     drawPlayer();
     drawAimArrow();
     drawBullets();
