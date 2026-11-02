@@ -1520,6 +1520,6 @@ function gameLoop(currentTime) {
     requestAnimationFrame(gameLoop);
 }
 
-// Start the game
+// Start the game//
 setState("menu");
 requestAnimationFrame(gameLoop);
